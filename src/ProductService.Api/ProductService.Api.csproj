@@ -6,7 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>68672aea-d1f8-4033-a9c5-ba07b40f35a8</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <DockerfileContext>..\..</DockerfileContext>
+	  <DockerfilePath>
+		  $(MSBuildProjectDirectory)\..\..\Dockerfile
+		  <DockerfileContext>$(MSBuildProjectDirectory)\..\..</DockerfileContext>
+	  </DockerfilePath>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,28 +1,74 @@
-﻿
-targetScope = 'resourceGroup'
+﻿targetScope = 'resourceGroup'
 
-@description('Azure Container Registry Name.')
+@description('Globally unique Azure Container Registry name.')
+@maxLength(24)
 @minLength(5)
-@maxLength(50)
-param registryName string
+param acrName string
 
-@description('Azure location.')
-param location string
+@description('Object ID of GitHub Actions CI/CD Service Principal.')
+param githubActionsSpObjectId string
 
-@description('Resource Tags.')
+@description('Resource tags.')
 param tags object = {}
 
-resource acr 'Microsoft.ContainerRegistry/registries@2025-04-01' = {
-  name: registryName
-  location: location
+var repositoryWriterRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a1e307c-b015-4ebd-883e-5b7698a07328')
+
+
+// Restrict all four Writer data actions to product-api.
+var githubWriterCondition = '''
+(
+  (
+    !(ActionMatches{'Microsoft.ContainerRegistry/registries/repositories/metadata/read'})
+    AND
+    !(ActionMatches{'Microsoft.ContainerRegistry/registries/repositories/content/read'})
+    AND
+    !(ActionMatches{'Microsoft.ContainerRegistry/registries/repositories/metadata/write'})
+    AND
+    !(ActionMatches{'Microsoft.ContainerRegistry/registries/repositories/content/write'})
+  )
+  OR
+  (
+    @Request[Microsoft.ContainerRegistry/registries/repositories:name] StringEqualsIgnoreCase 'product-api'
+  )
+)
+'''
+
+
+// Create an Azure Container Registry
+resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' = {
+  name: acrName
+  location: resourceGroup().location
   sku: {
     name: 'Basic'
   }
   properties: {
     adminUserEnabled: false
+    publicNetworkAccess: 'Enabled'
+    roleAssignmentMode: 'AbacRepositoryPermissions'
+    policies:{
+        azureADAuthenticationAsArmPolicy: {
+            status: 'enabled'
+        }
+    }
   }
   tags: tags
 }
 
-output registryId string = acr.id
-output registryLoginServer string = acr.properties.loginServer
+// Assign the "Container Registry Repository Writer" role to the GitHub Actions CI/CD Service Principal for the ACR
+resource acrRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(acrName, githubActionsSpObjectId, repositoryWriterRoleDefinitionId)
+  scope: registry
+  properties: {
+    roleDefinitionId: repositoryWriterRoleDefinitionId
+    principalId: githubActionsSpObjectId
+    principalType: 'ServicePrincipal'
+    description: 'Grant GitHub Actions to push and pull images only in product-api repository.'
+    condition: githubWriterCondition
+    conditionVersion: '2.0'
+  }
+}
+
+output acrId string = registry.id
+output acrName string = registry.name
+output acrLoginServer string = registry.properties.loginServer
+output githubActionsSpRoleAssignmentId string = acrRoleAssignment.id

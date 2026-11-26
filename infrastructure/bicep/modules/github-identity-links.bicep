@@ -26,7 +26,7 @@ resource cicdApplication 'Microsoft.Graph/applications@v1.0' existing = {
 
   // GitHub Actions Federated Identity Credential.
   resource githubFederatedCredential 'federatedIdentityCredentials@v1.0' = {
-    name: '${appUniqueName}/${federatedCredentialName}'
+    name: federatedCredentialName
     audiences: [
       githubAudience
     ]

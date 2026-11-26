@@ -28,7 +28,7 @@ az acr show `
 # Verify Managed Identity
 write-host "==================================================="
 write-host "Verifying Managed Identity: $MANAGED_IDENTITY_NAME"
-az Identity show `
+az identity show `
 --name $MANAGED_IDENTITY_NAME `
 --resource-group $RESOURCE_GROUP `
 --query "{name: name, principalId: principalId, clientId: clientId, tenantId: tenantId, provisioningState: provisioningState}" `
@@ -40,7 +40,7 @@ write-host "Verifying Container Apps Environment: $CONTAINER_APPS_ENVIRONMENT_NA
 az containerapp env show `
 --name $CONTAINER_APPS_ENVIRONMENT_NAME `
 --resource-group $RESOURCE_GROUP `
---query "{name: name, location: location, provisioningState: provisioningState, staticIp: staticIp, internalLoadBalancerEnabled: internalLoadBalancerEnabled}" `
+--query "{name: name, location: location, provisioningState: provisioningState, staticIp: staticIp, internalLoadBalancerEnabled:  properties.vnetConfiguration.internal}" `
 --output json
 
 # Verify Log Analytics Workspace

@@ -1,0 +1,76 @@
+
+name: CD - Publish Product API Image to ACR
+
+on:
+  push:
+    branches:
+      - develop
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-product-api-development
+  cancel-in-progress: false
+
+jobs:
+  publish-image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    # Only allow publishing from the develop branch.
+    if: github.ref == 'refs/heads/develop'
+
+    environment: development
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+        run: |
+          az acr login --name "$ACR_NAME"
+
+      - name: Build and Push Docker Image
+        env:
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+          IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+          IMAGE_TAG: develop-${{ github.sha }}
+        run: |
+          IMAGE_URI="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          echo "Building Docker image: ${IMAGE_URI}"
+
+          docker build \
+            --file Dockerfile \
+            --tag "$IMAGE_URI" \
+            .
+
+          echo "Pushing Docker image to ACR..."
+
+          docker push "$IMAGE_URI"
+
+          echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_ENV"
+
+      - name: Display Published Image
+        run: |
+          echo "### Docker Image Published Successfully" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image:** \`${IMAGE_URI}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"

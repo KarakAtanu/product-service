@@ -1,0 +1,72 @@
+
+name: CI - Application and Infrastructure Validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  application-ci:
+    name: Build and Validate Product API
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore ProductService.slnx
+
+      - name: Build solution
+        run: dotnet build ProductService.slnx --configuration Release --no-restore
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --file Dockerfile \
+            --tag product-api:ci \
+            .
+
+  infrastructure-ci:
+    name: Validate Azure Infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Bicep CLI
+        run: |
+          az bicep install
+
+      - name: Build main Bicep template
+        run: |
+          az bicep build \
+            --file infrastructure/bicep/main.bicep \
+            --stdout > /dev/null
+
+      - name: Validate development parameters
+        run: |
+          az bicep build-params \
+            --file infrastructure/bicep/parameters/dev.bicepparam \
+            --stdout > /dev/null
